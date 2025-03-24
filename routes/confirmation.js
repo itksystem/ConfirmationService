@@ -5,7 +5,8 @@ const authMiddleware = require('openfsm-middlewares-auth-service'); // middlewar
 const confirmation = require('../controllers/confirmationController');
 
 
-router.post('/v1/sendCode', authMiddleware.authenticateToken, confirmation.sendCode);    // Создать заказ на доставку 
+router.post('/v1/code', authMiddleware.authenticateToken, confirmation.sendCode);    // отправить код на проверку
+router.post('/v1/request', authMiddleware.authenticateToken, confirmation.sendRequest);    // Создать заказ на код
 
 
 module.exports = router;
