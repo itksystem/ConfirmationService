@@ -10,7 +10,7 @@ const amqp = require('amqplib');
 
 
 /* Коннектор для шины RabbitMQ */
-const { RABBITMQ_HOST, RABBITMQ_PORT, RABBITMQ_USER, RABBITMQ_PASSWORD,  RABBITMQ_SMS_CODES_QUEUE, RABBITMQ_SMS_CODES_RESULT_QUEUE  } = process.env;
+const { RABBITMQ_HOST, RABBITMQ_PORT, RABBITMQ_USER, RABBITMQ_PASSWORD,  RABBITMQ_SMS_CODES_QUEUE, RABBITMQ_SMS_CODES_RESULT_QUEUE, RABBITMQ_SMS_CODES_RESULT_SUCCESS_CALLBACK_QUEUE  } = process.env;
 const login = RABBITMQ_USER || 'guest';
 const pwd = RABBITMQ_PASSWORD || 'guest';
 const host = RABBITMQ_HOST || 'rabbitmq-service';
@@ -18,6 +18,7 @@ const port = RABBITMQ_PORT || '5672';
 
 const SMS_CODES_QUEUE       = RABBITMQ_SMS_CODES_QUEUE  || 'SMS_CODES';
 const SMS_CODES_RESULT_QUEUE  = RABBITMQ_SMS_CODES_RESULT_QUEUE  || 'SMS_CODES_RESULT_QUEUE';
+const SMS_CODES_RESULT_SUCCESS_CALLBACK_QUEUE = RABBITMQ_SMS_CODES_RESULT_SUCCESS_CALLBACK_QUEUE  || 'SMS_CODES_RESULT_SUCCESS_CALLBACK_QUEUE';
 
 /*
  @confirm - обьект с данными для создания подтверждения
@@ -30,6 +31,22 @@ exports.hasConfirmActiveRequestId = (userId = null) => { // передаем о�
   return new Promise((resolve, reject) => {  
         db.query( SQL.CONFIRMATION.GET_ACTIVE_USER_REQUEST_ID,
           [userId],
+          (err, result) => {
+            if (err) {
+              logger.error(err); 
+              return reject(null);
+            }
+            resolve(result?.rows?.length > 0 ? true: false);
+        }
+     );
+  });
+};
+//
+exports.isActiveRequestId = (requestId = null) => { // передаем обьект с параметрами
+  if(!requestId) return null;
+  return new Promise((resolve, reject) => {  
+        db.query( SQL.CONFIRMATION.GET_REQUEST_ID_STATUS,
+          [requestId],
           (err, result) => {
             if (err) {
               logger.error(err); 
@@ -57,11 +74,11 @@ exports.createConfirmCode = (userId = null, confirmationType= null) => { // пе
   });
 };
 
-exports.sendCode = (confirm = null) => { // передаем обьект с параметрами
-  if(!confirm?.userId || !confirm.confirm_type) return null;
+exports.setRequestStatus = (requestId = null, status = null) => { // установить статус у запроса
+  if(!requestId || !status) return null;
   return new Promise((resolve, reject) => {  
-        db.query( SQL.CONFIRMATION.CREATE_CONFIRM_CODE,
-          [confirm.userId, confirm.confirm_type],
+        db.query( SQL.CONFIRMATION.SET_STATUS_REQUEST_ID,
+          [requestId, status],
           (err, results) => {
             if (err) {
               console.log(err); 
@@ -74,7 +91,7 @@ exports.sendCode = (confirm = null) => { // передаем обьект с п�
 };
 
 
-exports.sendCodeToESB = async (requestId = null, profile = null ) => { 
+exports.sendVerificationCodeToBus = async (requestId = null, profile = null ) => { 
   try {
      if(!requestId || !profile?.phone) return false;      
       let msg = await exports.getRequestData(requestId);
@@ -132,13 +149,6 @@ async function startConsumer(queue, handler) {
   }
 }
 
-
-startConsumer(SMS_CODES_RESULT_QUEUE,
-  async (msg) => {
-    console.log(msg);
-    await updateRequestData(msg);  
-});
-
 async function updateRequestData(msg = null) { 
   if(!msg) return null;
   return new Promise((resolve, reject) => {  
@@ -155,4 +165,27 @@ async function updateRequestData(msg = null) {
   });
 };
 
+//  отправка результата проверки кода в МС Клиент
+exports.sendVerificationResultToBus = async (requestId = null) => { 
+  try {
+     if(!requestId) return false;      
+      let msg = await exports.getRequestData(requestId);
+      let rabbitClient = new ClientProducerAMQP();      
+      await  rabbitClient.sendMessage(SMS_CODES_RESULT_SUCCESS_CALLBACK_QUEUE , msg)  
+    } catch (error) {
+      console.log(`sendVerificationResultToBus. Ошибка ${error}`);
+      return false;
+  } 
+  return true;
+}
+
+// чтение результата отправки кода смс
+startConsumer(SMS_CODES_RESULT_QUEUE, async (msg) => { 
+  try {
+    console.log(msg);  
+     await updateRequestData(msg); 
+  } catch (error) {
+    console.log(error); 
+  }
+});
 
