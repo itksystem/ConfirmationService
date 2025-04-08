@@ -10,13 +10,14 @@ const amqp = require('amqplib');
 
 
 /* Коннектор для шины RabbitMQ */
-const { RABBITMQ_HOST, RABBITMQ_PORT, RABBITMQ_USER, RABBITMQ_PASSWORD,  RABBITMQ_SMS_CODES_QUEUE, RABBITMQ_SMS_CODES_RESULT_QUEUE, RABBITMQ_SMS_CODES_RESULT_SUCCESS_CALLBACK_QUEUE  } = process.env;
+const { RABBITMQ_HOST, RABBITMQ_PORT, RABBITMQ_USER, RABBITMQ_PASSWORD, RABBITMQ_EMAIL_CODES_QUEUE,  RABBITMQ_SMS_CODES_QUEUE, RABBITMQ_SMS_CODES_RESULT_QUEUE, RABBITMQ_SMS_CODES_RESULT_SUCCESS_CALLBACK_QUEUE  } = process.env;
 const login = RABBITMQ_USER || 'guest';
 const pwd = RABBITMQ_PASSWORD || 'guest';
 const host = RABBITMQ_HOST || 'rabbitmq-service';
 const port = RABBITMQ_PORT || '5672';
 
 const SMS_CODES_QUEUE       = RABBITMQ_SMS_CODES_QUEUE  || 'SMS_CODES';
+const EMAIL_CODES_QUEUE     = RABBITMQ_EMAIL_CODES_QUEUE  || 'EMAIL_CODES';
 const SMS_CODES_RESULT_QUEUE  = RABBITMQ_SMS_CODES_RESULT_QUEUE  || 'SMS_CODES_RESULT_QUEUE';
 const SMS_CODES_RESULT_SUCCESS_CALLBACK_QUEUE = RABBITMQ_SMS_CODES_RESULT_SUCCESS_CALLBACK_QUEUE  || 'SMS_CODES_RESULT_SUCCESS_CALLBACK_QUEUE';
 
@@ -90,7 +91,7 @@ exports.setRequestStatus = (requestId = null, status = null) => { // устан�
   });
 };
 
-
+// Отправка смс-кода 
 exports.sendVerificationCodeToBus = async (requestId = null, profile = null ) => { 
   try {
      if(!requestId || !profile?.phone) return false;      
@@ -105,11 +106,52 @@ exports.sendVerificationCodeToBus = async (requestId = null, profile = null ) =>
         }
       )  
     } catch (error) {
-      console.log(`sendCodeToESB. Ошибка ${error}`);
+      console.log(`sendVerificationCodeToBus. Ошибка ${error}`);
       return false;
   } 
   return true;
 }
+
+// Отправка email-кода 
+/*
+ {
+  "transport": "mail",
+  "template": "RETRY_VERIFICATION_CODE_NOTIFICATION",
+  "to": "itk_system@mail.ru",
+  "subject": "Добро пожаловать на PICKMAX.RU - ваш супермаркет в Интернет! ",
+  "text": "test",
+  "variables": {
+    "HOST_NAME": "PICKMAX.RU",
+    "HOST": "pickmax.ru"
+  }
+}
+
+*/
+exports.sendVerificationEmailCodeToBus = async (requestId = null, profile = null ) => { 
+  try {
+     if(!requestId || !profile?.email) return false;      
+      let msg = await exports.getRequestData(requestId);
+      let rabbitClient = new ClientProducerAMQP();      
+      await  rabbitClient.sendMessage(EMAIL_CODES_QUEUE , 
+        { 
+          transport: "mail",
+          template: "RETRY_VERIFICATION_CODE_NOTIFICATION",
+          subject: "Pickmax.Код подтверждения почты",
+          to : profile.email, 
+          requestId : msg.request_id,           
+          variables: {
+          CODE: msg.code
+        }         
+       }
+      )  
+    } catch (error) {
+      console.log(`sendVerificationEmailCodeToBus. Ошибка ${error}`);
+      return false;
+  } 
+  return true;
+}
+
+
 
 exports.getRequestData = (requestId = null) => { 
   if(!requestId) return false;
@@ -178,6 +220,10 @@ exports.sendVerificationResultToBus = async (requestId = null) => {
   } 
   return true;
 }
+
+
+
+
 
 // чтение результата отправки кода смс
 startConsumer(SMS_CODES_RESULT_QUEUE, async (msg) => { 

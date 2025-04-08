@@ -76,7 +76,7 @@ exports.sendCode = async (req, res) => {
             case 429:
                 responseData = {
                     code: 429,
-                    message: 'Исчерпаны попытки'
+                    message: 'Исчерпаны попытки ввода кода'
                 };
                 break;
             case 422:
@@ -117,11 +117,25 @@ exports.sendRequest = async (req, res) => {
             throw(429); // отказываем в создании запроса - есть активные запросы не просроченные 
         const requestId = await confirmationHelper.createConfirmCode(userId, confirmationType);        
         if(!requestId) throw(422)
-        let result = await confirmationHelper.sendVerificationCodeToBus(requestId, _profile?.data?.profile);
-        if(!result) throw(500)                         
+            switch(confirmationType){
+                case 'phone' : {
+                    let result = await confirmationHelper.sendVerificationCodeToBus(requestId, _profile?.data?.profile);
+                    if(!result) throw(500)                         
+                    break   
+                }
+                case 'email' : {
+                    let result = await confirmationHelper.sendVerificationEmailCodeToBus(requestId, _profile?.data?.profile);
+                    if(!result) throw(500)                         
+                    break   
+                }
+        }
+        
         sendResponse(res, 200, { status: true, requestId });
     } catch (error) {
          console.error("Error create:", error);
-         sendResponse(res, (Number(error) || 500), { code: (Number(error) || 500), message:  new CommonFunctionHelper().getDescriptionByCode((Number(error) || 500)) });
+         sendResponse(res, (Number(error) || 500), { 
+            code: (Number(error) || 500),
+            message:  new CommonFunctionHelper().getDescriptionByCode((Number(error) || 500)) 
+        });
     }
 };
