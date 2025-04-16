@@ -139,3 +139,43 @@ exports.sendRequest = async (req, res) => {
         });
     }
 };
+
+
+exports.create2PARequestId = async (req, res) => {        
+    try {        
+        let userId = await authMiddleware.getUserId(req, res);
+        if(!userId) throw(401);      
+        let {requestType} = req.body; // security-question || pin-code
+        if(!requestType) throw(402);      
+        
+        await confirmationHelper.disable2PHARequestId(userId, requestType);
+        const requestId = await confirmationHelper.create2PHARequestId(userId, requestType);
+        if(!requestId) throw(429); // отказываем в создании запроса - есть активные запросы не просроченные                
+
+        sendResponse(res, 200, { status: true, requestId });
+    } catch (error) {
+         console.error("Error create:", error);
+         sendResponse(res, (Number(error) || 500), { 
+            code: (Number(error) || 500),
+            message:  new CommonFunctionHelper().getDescriptionByCode((Number(error) || 500)) 
+        });
+    }
+};
+
+exports.get2PARequestId = async (req, res) => {        
+    try {        
+        let userId = await authMiddleware.getUserId(req, res);
+        if(!userId) throw(401);      
+        let requestType = req.params.confirmationType; // security-question || pin-code        
+        if(!requestType) throw(402);              
+        console.log(userId, requestType);
+        const request = await confirmationHelper.get2PHARequestId(userId, requestType);
+        sendResponse(res, 200, { status: request?.requestId ? true : false, requestId : request ? request.requestId : undefined });
+    } catch (error) {
+         console.error("Error create:", error);
+         sendResponse(res, (Number(error) || 500), { 
+            code: (Number(error) || 500),
+            message:  new CommonFunctionHelper().getDescriptionByCode((Number(error) || 500)) 
+        });
+    }
+};

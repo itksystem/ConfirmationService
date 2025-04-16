@@ -10,7 +10,9 @@ const amqp = require('amqplib');
 
 
 /* Коннектор для шины RabbitMQ */
-const { RABBITMQ_HOST, RABBITMQ_PORT, RABBITMQ_USER, RABBITMQ_PASSWORD, RABBITMQ_EMAIL_CODES_QUEUE,  RABBITMQ_SMS_CODES_QUEUE, RABBITMQ_SMS_CODES_RESULT_QUEUE, RABBITMQ_SMS_CODES_RESULT_SUCCESS_CALLBACK_QUEUE  } = process.env;
+const { RABBITMQ_HOST, RABBITMQ_PORT, RABBITMQ_USER, RABBITMQ_PASSWORD, RABBITMQ_EMAIL_CODES_QUEUE,  
+  RABBITMQ_SMS_CODES_QUEUE, RABBITMQ_SMS_CODES_RESULT_QUEUE, RABBITMQ_SMS_CODES_RESULT_SUCCESS_CALLBACK_QUEUE,
+  RABBITMQ_TWO_PA_CHANGE_STATUS_QUEUE } = process.env;
 const login = RABBITMQ_USER || 'guest';
 const pwd = RABBITMQ_PASSWORD || 'guest';
 const host = RABBITMQ_HOST || 'rabbitmq-service';
@@ -20,7 +22,7 @@ const SMS_CODES_QUEUE       = RABBITMQ_SMS_CODES_QUEUE  || 'SMS_CODES';
 const EMAIL_CODES_QUEUE     = RABBITMQ_EMAIL_CODES_QUEUE  || 'EMAIL_CODES';
 const SMS_CODES_RESULT_QUEUE  = RABBITMQ_SMS_CODES_RESULT_QUEUE  || 'SMS_CODES_RESULT_QUEUE';
 const SMS_CODES_RESULT_SUCCESS_CALLBACK_QUEUE = RABBITMQ_SMS_CODES_RESULT_SUCCESS_CALLBACK_QUEUE  || 'SMS_CODES_RESULT_SUCCESS_CALLBACK_QUEUE';
-
+const TWO_PA_CHANGE_STATUS_QUEUE = RABBITMQ_TWO_PA_CHANGE_STATUS_QUEUE  || 'TWO_PA_CHANGE_STATUS_QUEUE';
 /*
  @confirm - обьект с данными для создания подтверждения
  @requestId - идентификатор запроса кода
@@ -151,8 +153,6 @@ exports.sendVerificationEmailCodeToBus = async (requestId = null, profile = null
   return true;
 }
 
-
-
 exports.getRequestData = (requestId = null) => { 
   if(!requestId) return false;
   return new Promise((resolve, reject) => {  
@@ -163,11 +163,78 @@ exports.getRequestData = (requestId = null) => {
           console.log(err); 
           return reject(null);
         }
-        resolve(results.rows[0]);
+        resolve(results?.rows[0] ?? null);
     }
    );
  });
 }
+
+exports.create2PHARequestId = (userId = null, requestType = null) => {  // получить идентификатор запрос на смену 2PA - вопрос или цифрового кода
+  if(!requestType || !userId) return false;
+  return new Promise((resolve, reject) => {  
+    db.query( SQL.CONFIRMATION.SQL_CREATE_2PHA_USER_REQUEST_ID,
+      [userId, requestType],
+      (err, results) => {
+        if (err) {
+          console.log(err); 
+          return reject(null);
+        }
+        resolve(results?.rows[0]?.requestId ?? null);
+    }
+   );
+ });
+}
+
+exports.disable2PHARequestId = (userId = null, requestType = null) => {  // запрещаем другие запросы при создании нового запроса
+  if(!requestType || !userId) return false;
+  return new Promise((resolve, reject) => {  
+    db.query( SQL.CONFIRMATION.SQL_DISABLE_2PHA_USER_REQUESTS_BY_TYPE,
+      [userId, requestType],
+      (err, results) => {
+        if (err) {
+          console.log(err); 
+          return reject(null);
+        }
+        resolve(results?.rows[0]?.requestId ?? null);
+    }
+   );
+ });
+}
+
+
+exports.get2PHARequestId = (userId = null, requestType = null) => {  // получить идентификатор запрос на смену 2PA - вопрос или цифрового кода
+  if(!requestType || !userId) return false;
+  return new Promise((resolve, reject) => {  
+    db.query( SQL.CONFIRMATION.SQL_FIND_2PHA_USER_REQUEST_BY_USER_ID,
+      [userId, requestType],
+      (err, results) => {
+        if (err) {
+          console.log(err); 
+          return reject(null);
+        }
+        resolve(results?.rows[0] ?? null);
+    }
+   );
+ });
+}
+
+exports.change2PHARequestId = (msg) => {  // изменение статуса
+  const {userId, requestId, status} = msg;
+  if(!requestId || !userId || !status) return false;
+  return new Promise((resolve, reject) => {  
+    db.query( SQL.CONFIRMATION.SQL_SET_STATUS_2PHA_USER_REQUEST_BY_ID,
+      [userId, requestId, status],
+      (err, results) => {
+        if (err) {
+          console.log(err); 
+          return reject(null);
+        }
+        resolve(results?.rows[0] ?? null);
+    }
+   );
+ });
+}
+
 
 async function startConsumer(queue, handler) {
   try {
@@ -221,15 +288,27 @@ exports.sendVerificationResultToBus = async (requestId = null) => {
   return true;
 }
 
-
-
-
-
 // чтение результата отправки кода смс
 startConsumer(SMS_CODES_RESULT_QUEUE, async (msg) => { 
   try {
     console.log(msg);  
      await updateRequestData(msg); 
+  } catch (error) {
+    console.log(error); 
+  }
+});
+
+/*
+ Изменяем статус { userId, requestId, status - "PENDING", "ERROR", "SUCCESS", "FAILED"}
+  { "userId" : 14, 
+    "requestId" : "455eb0ee-a550-46a6-b480-45fdbc91952d", 
+   "status" : "FAILED"
+   }
+ */
+startConsumer(TWO_PA_CHANGE_STATUS_QUEUE, async (msg) => { 
+  try {
+    console.log(msg);  
+      await exports.change2PHARequestId(msg)
   } catch (error) {
     console.log(error); 
   }
