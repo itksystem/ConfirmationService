@@ -11,19 +11,20 @@ const sendResponse = (res, statusCode, data) => {
 };
 
 
-exports.sendCode = async (req, res) => {
+exports.checkCode = async (req, res) => {
     let request = null;
-    const { requestId, code } = req.body; // Получаем requestId и код из тела запроса
-    
+    const { requestId, code, action } = req.body; // Получаем requestId и код из тела запроса
+    let userId = await authMiddleware.getUserId(req, res);
+    if(!userId) throw(401);      
     try {
         // 1. Валидация входных данных
-        if (!requestId || !code) {
+        if (!requestId || !code || !action) {
             throw new Error('400');
         }
 
         // 2. Получаем данные запроса
         request = await confirmationHelper.getRequestData(requestId);
-        if (!request.user_id) {
+        if (!request.user_id || (request.user_id != userId)) {
             throw new Error('500');
         }
 
@@ -48,18 +49,25 @@ exports.sendCode = async (req, res) => {
             if (!setStatus) {
                 throw new Error('500');
             }
-
-            // 5.2 Отправка результата в шину
-            const sendResult = await confirmationHelper.sendVerificationResultToBus(requestId);
-            if (!sendResult) {
-                throw new Error('500');
-            }
-
+            switch(action){
+              case 'PIN_CODE_DISABLE' : {
+                let sendResult = await confirmationHelper.sendPINCodeStatusResultToBus(requestId);
+                if (!sendResult) {
+                    throw new Error('500');
+                }
+                break;
+              }     
+              case 'PIN_CODE_ENABLE' : {
+                // 5.2 Отправка результата в шину
+                const sendResult = await confirmationHelper.sendVerificationResultToBus(requestId);
+                if (!sendResult) {
+                    throw new Error('500');
+                }
+                break;                
+              }
+            }           
             // 5.3 Успешный ответ
-            sendResponse(res, 200, {
-                status: true,
-                message: 'Код подтвержден!'
-            });
+            sendResponse(res, 200, { status: true, requestId, message: 'Код подтвержден!' });
         } 
     } catch (error) {
         console.error('Error in sendCode:', error);
@@ -108,15 +116,11 @@ exports.sendRequest = async (req, res) => {
         let userId = await authMiddleware.getUserId(req, res);
         if(!userId) throw(401);      
         let {confirmationType} = req.body;
-        if(!confirmationType) throw(402);      
+        if(!confirmationType) throw(402); 
+        let {requestId} = req.body;     
+        if(!requestId) throw(402);      
         let _profile = await clientService.profile(req,res);
-        if(!_profile?.data?.profile?.phone) throw(402)
-
-        const hasConfirmActiveRequestId = await confirmationHelper.hasConfirmActiveRequestId(userId);        
-        if(hasConfirmActiveRequestId == true ) 
-            throw(429); // отказываем в создании запроса - есть активные запросы не просроченные 
-        const requestId = await confirmationHelper.createConfirmCode(userId, confirmationType);        
-        if(!requestId) throw(422)
+        if(!_profile?.data?.profile?.phone) throw(402)                
             switch(confirmationType){
                 case 'phone' : {
                     let result = await confirmationHelper.sendVerificationCodeToBus(requestId, _profile?.data?.profile);
@@ -128,8 +132,7 @@ exports.sendRequest = async (req, res) => {
                     if(!result) throw(500)                         
                     break   
                 }
-        }
-        
+        }        
         sendResponse(res, 200, { status: true, requestId });
     } catch (error) {
          console.error("Error create:", error);
@@ -140,8 +143,8 @@ exports.sendRequest = async (req, res) => {
     }
 };
 
-
-exports.create2PARequestId = async (req, res) => {        
+/*
+exports.createRequestId = async (req, res) => {        
     try {        
         let userId = await authMiddleware.getUserId(req, res);
         if(!userId) throw(401);      
@@ -149,7 +152,7 @@ exports.create2PARequestId = async (req, res) => {
         if(!requestType) throw(402);      
         
         await confirmationHelper.disable2PHARequestId(userId, requestType);
-        const requestId = await confirmationHelper.create2PHARequestId(userId, requestType);
+        const requestId = await confirmationHelper.createConfirmCode(userId, requestType);
         if(!requestId) throw(429); // отказываем в создании запроса - есть активные запросы не просроченные                
 
         sendResponse(res, 200, { status: true, requestId });
@@ -162,7 +165,30 @@ exports.create2PARequestId = async (req, res) => {
     }
 };
 
-exports.get2PARequestId = async (req, res) => {        
+*/
+// создаем запрос на тип подтверждения  email || phone
+exports.createRequestId = async (req, res) => {        
+    try {        
+        let userId = await authMiddleware.getUserId(req, res);
+        if(!userId) throw(401);      
+        let {confirmationType} = req.body; // email || phone
+        if(!confirmationType) throw(402);      
+               
+        const requestId = await confirmationHelper.createConfirmCode(userId, confirmationType);
+        if(!requestId) throw(429); // отказываем в создании запроса - есть активные запросы не просроченные                
+
+        sendResponse(res, 200, { status: true, requestId });
+    } catch (error) {
+         console.error("Error create:", error);
+         sendResponse(res, (Number(error) || 500), { 
+            code: (Number(error) || 500),
+            message:  new CommonFunctionHelper().getDescriptionByCode((Number(error) || 500)) 
+        });
+    }
+};
+
+
+exports.getRequestId = async (req, res) => {        
     try {        
         let userId = await authMiddleware.getUserId(req, res);
         if(!userId) throw(401);      

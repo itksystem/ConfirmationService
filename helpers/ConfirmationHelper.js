@@ -12,7 +12,7 @@ const amqp = require('amqplib');
 /* Коннектор для шины RabbitMQ */
 const { RABBITMQ_HOST, RABBITMQ_PORT, RABBITMQ_USER, RABBITMQ_PASSWORD, RABBITMQ_EMAIL_CODES_QUEUE,  
   RABBITMQ_SMS_CODES_QUEUE, RABBITMQ_SMS_CODES_RESULT_QUEUE, RABBITMQ_SMS_CODES_RESULT_SUCCESS_CALLBACK_QUEUE,
-  RABBITMQ_TWO_PA_CHANGE_STATUS_QUEUE } = process.env;
+  RABBITMQ_CHANGE_PIN_CODE_QUEUE, RABBITMQ_TWO_PA_CHANGE_STATUS_QUEUE } = process.env;
 const login = RABBITMQ_USER || 'guest';
 const pwd = RABBITMQ_PASSWORD || 'guest';
 const host = RABBITMQ_HOST || 'rabbitmq-service';
@@ -23,6 +23,7 @@ const EMAIL_CODES_QUEUE     = RABBITMQ_EMAIL_CODES_QUEUE  || 'EMAIL_CODES';
 const SMS_CODES_RESULT_QUEUE  = RABBITMQ_SMS_CODES_RESULT_QUEUE  || 'SMS_CODES_RESULT_QUEUE';
 const SMS_CODES_RESULT_SUCCESS_CALLBACK_QUEUE = RABBITMQ_SMS_CODES_RESULT_SUCCESS_CALLBACK_QUEUE  || 'SMS_CODES_RESULT_SUCCESS_CALLBACK_QUEUE';
 const TWO_PA_CHANGE_STATUS_QUEUE = RABBITMQ_TWO_PA_CHANGE_STATUS_QUEUE  || 'TWO_PA_CHANGE_STATUS_QUEUE';
+const CHANGE_PIN_CODE_QUEUE      = RABBITMQ_CHANGE_PIN_CODE_QUEUE || `CHANGE_PIN_CODE_QUEUE`;
 /*
  @confirm - обьект с данными для создания подтверждения
  @requestId - идентификатор запроса кода
@@ -96,8 +97,10 @@ exports.setRequestStatus = (requestId = null, status = null) => { // устан�
 // Отправка смс-кода 
 exports.sendVerificationCodeToBus = async (requestId = null, profile = null ) => { 
   try {
+     console.log(requestId, profile?.phone);
      if(!requestId || !profile?.phone) return false;      
       let msg = await exports.getRequestData(requestId);
+      console.log(msg);
       let rabbitClient = new ClientProducerAMQP();      
       await  rabbitClient.sendMessage(SMS_CODES_QUEUE , 
         { 
@@ -283,6 +286,19 @@ exports.sendVerificationResultToBus = async (requestId = null) => {
       await  rabbitClient.sendMessage(SMS_CODES_RESULT_SUCCESS_CALLBACK_QUEUE , msg)  
     } catch (error) {
       console.log(`sendVerificationResultToBus. Ошибка ${error}`);
+      return false;
+  } 
+  return true;
+}
+
+exports.sendPINCodeStatusResultToBus = async (requestId = null) => { 
+  try {
+     if(!requestId) return false;      
+      let msg = await exports.getRequestData(requestId);
+      let rabbitClient = new ClientProducerAMQP();      
+      await  rabbitClient.sendMessage(CHANGE_PIN_CODE_QUEUE , msg)  
+    } catch (error) {
+      console.log(`sendPINCodeStatusResultToBus. Ошибка ${error}`);
       return false;
   } 
   return true;
