@@ -291,10 +291,14 @@ exports.sendVerificationResultToBus = async (requestId = null) => {
   return true;
 }
 
-exports.sendPINCodeStatusResultToBus = async (requestId = null) => { 
+exports.sendPINCodeStatusResultToBus = async (requestId = null, action = null,  pinCode = null) => { 
   try {
-     if(!requestId) return false;      
-      let msg = await exports.getRequestData(requestId);
+     console.log(`sendPINCodeStatusResultToBus`, requestId, action);  
+     if(!requestId || !action) return false;      
+      let msg = await exports.getRequestData(requestId);      
+      msg.action = action;
+      msg.pin_code = pinCode ?? null;
+      console.log(`sendPINCodeStatusResultToBus`, msg );  
       let rabbitClient = new ClientProducerAMQP();      
       await  rabbitClient.sendMessage(CHANGE_PIN_CODE_QUEUE , msg)  
     } catch (error) {
@@ -303,6 +307,7 @@ exports.sendPINCodeStatusResultToBus = async (requestId = null) => {
   } 
   return true;
 }
+
 
 // чтение результата отправки кода смс
 startConsumer(SMS_CODES_RESULT_QUEUE, async (msg) => { 

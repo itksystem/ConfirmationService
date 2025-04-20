@@ -13,7 +13,7 @@ const sendResponse = (res, statusCode, data) => {
 
 exports.checkCode = async (req, res) => {
     let request = null;
-    const { requestId, code, action } = req.body; // Получаем requestId и код из тела запроса
+    const { requestId, code, action, pinCode } = req.body; // Получаем requestId и код из тела запроса
     let userId = await authMiddleware.getUserId(req, res);
     if(!userId) throw(401);      
     try {
@@ -50,14 +50,24 @@ exports.checkCode = async (req, res) => {
                 throw new Error('500');
             }
             switch(action){
-              case 'PIN_CODE_DISABLE' : {
-                let sendResult = await confirmationHelper.sendPINCodeStatusResultToBus(requestId);
+              case 'PIN_CODE_ENABLE' : {
+                if (!pinCode) {
+                    throw new Error('500');
+                }
+                let sendResult = await confirmationHelper.sendPINCodeStatusResultToBus(requestId, action, pinCode);
                 if (!sendResult) {
                     throw new Error('500');
                 }
                 break;
               }     
-              case 'PIN_CODE_ENABLE' : {
+              case 'PIN_CODE_DISABLE' : {
+                let sendResult = await confirmationHelper.sendPINCodeStatusResultToBus(requestId, action);
+                if (!sendResult) {
+                    throw new Error('500');
+                }
+                break;
+              }     
+              case '____PIN_CODE_ENABLE' : {
                 // 5.2 Отправка результата в шину
                 const sendResult = await confirmationHelper.sendVerificationResultToBus(requestId);
                 if (!sendResult) {
