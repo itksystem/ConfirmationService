@@ -16,6 +16,12 @@ router.post('/v1/request', authMiddleware.authenticateToken, confirmation.create
 // Получить активный запрос request{requestType = security-question || pin-code }
 router.get( '/v1/request/:confirmationType', authMiddleware.authenticateToken, confirmation.getRequestId);    
 
+/*--------- Работа с контрольными вопросами  ------------------*/
+router.get('/v1/security-question-status', authMiddleware.authenticateToken, confirmation.getSecurityQuestionStatus);  // получение статуса установки вопроса
+router.get('/v1/security-questions', authMiddleware.authenticateToken, confirmation.getSecurityQuestions);  // получение списка вопросов 
+router.post('/v1/security-question', authMiddleware.authenticateToken, confirmation.setSecurityQuestion);  // установка контрольного вопроса
+
+//router.get('/v1/security-question-answer', authMiddleware.authenticateToken, confirmation.securityQuestionAnswer);  // установить контрольный 
 
 module.exports = router;
  

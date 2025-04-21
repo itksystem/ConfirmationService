@@ -238,6 +238,65 @@ exports.change2PHARequestId = (msg) => {  // изменение статуса
  });
 }
 
+exports.getSecurityQuestionStatus = async (userId) => {
+  try {
+    const result = await new Promise((resolve, reject) => {
+      db.query(SQL.CONFIRMATION.GET_SECURITY_QUESTION, [userId], (err, result) => {
+        if (err) {
+          logger.error('Ошибка при получении кода верификации:', err);
+          return reject(err);
+        }
+        resolve(result); 
+      });
+    });
+    return result.rows[0] || null; // Возвращаем `null`, если данных нет
+  } catch (error) {
+    logger.error('Ошибка в getTwoFactor:', error);
+    throw error;
+  }
+};
+
+
+exports.getSecurityQuestions = async () => {
+  try {
+    const result = await new Promise((resolve, reject) => {
+      db.query(SQL.CONFIRMATION.GET_SECURITY_QUESTIONS, [], (err, result) => {
+        if (err) {
+          logger.error('Ошибка при получении кода верификации:', err);
+          return reject(err);
+        }
+        resolve(result); 
+      });
+    });
+    return result.rows || null; // Возвращаем `null`, если данных нет
+  } catch (error) {
+    logger.error('Ошибка в getTwoFactor:', error);
+    throw error;
+  }
+};
+
+exports.setSecurityQuestion = async (userId = null, factorId = null, factorText = null, factorHash = null) => {  
+    try {
+      const result = await new Promise((resolve, reject) => {
+        db.query(SQL.CONFIRMATION.SET_SECURITY_QUESTION, 
+          [userId, factorId, factorText, factorHash], (err, result) => {
+          if (err) {
+            logger.error('Ошибка при получении кода верификации:', err);
+            return reject(err);
+          }
+          resolve(result); 
+        });
+      });
+      return result.rows[0] || null; // Возвращаем `null`, если данных нет
+    } catch (error) {
+      logger.error('Ошибка в setTwoFactor:', error);
+      throw error;
+    }
+  };
+  
+
+
+/* Шина */
 
 async function startConsumer(queue, handler) {
   try {

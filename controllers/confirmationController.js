@@ -4,6 +4,7 @@ const commonFunction= new CommonFunctionHelper();
 const authMiddleware = require('openfsm-middlewares-auth-service'); // middleware для проверки токена
 const ClientServiceHandler = require("openfsm-client-service-handler");
 const clientService = new ClientServiceHandler();              // интерфейс для  связи с MC AuthService
+const bcrypt = require('bcryptjs');
 
 
 const sendResponse = (res, statusCode, data) => {
@@ -215,3 +216,62 @@ exports.getRequestId = async (req, res) => {
         });
     }
 };
+
+exports.getSecurityQuestionStatus = async (req, res) => {
+    try {    
+      let userId = await authMiddleware.getUserId(req, res);
+      if (!userId) throw(401);  
+      const factor = await confirmationHelper.getSecurityQuestionStatus(userId);    
+      res.status(200).json({ status: (factor?.factor_key ? true : false) }); // Успешный ответ
+    } catch (error) {      
+      sendResponse(res, (Number(error) || 500), { 
+        code: (Number(error) || 500),
+        message:  new CommonFunctionHelper().getDescriptionByCode((Number(error) || 500)) 
+    });
+    }
+  };
+
+  exports.getSecurityQuestions = async (req, res) => {
+    try {    
+      let userId = await authMiddleware.getUserId(req, res);
+      if (!userId) throw(401)
+      const questions = await confirmationHelper.getSecurityQuestions();    
+      if (!questions) throw(500)
+      res.status(200).json({ status: true, questions }); // Успешный ответ
+    } catch (error) {      
+      sendResponse(res, (Number(error) || 500), { 
+        code: (Number(error) || 500),
+        message:  new CommonFunctionHelper().getDescriptionByCode((Number(error) || 500)) 
+    });
+    }
+  };
+
+
+  exports.setSecurityQuestion = async (req, res) => {   
+    let userId = await authMiddleware.getUserId(req, res);
+    const {factorId, factorText, answerText, requestId} = req.body;
+    console.log(req.body)
+    try {    
+      if (!userId) throw(401)
+      if (!answerText || !requestId) throw(402)
+      if(!factorId && (!factorText || factorText=='')) throw(402)
+
+       const request = await confirmationHelper.getRequestData(requestId);      
+       console.log(request);
+       if(!request?.request_id || request?.attempts >= 3 ) throw(422)
+              
+        const factorHash = await bcrypt.hash(answerText.trim().toLowerCase(), 10);
+        const result = await confirmationHelper.setSecurityQuestion(userId, factorId, factorText, factorHash);              
+        const status = result ? `SUCCESS`  : `ERROR`;
+        const result2 = await confirmationHelper.setRequestStatus(requestId, status)        
+        if (!result) throw(500)
+        
+        res.status(200).json({ status: true }); // Успешный ответ
+      } catch (error) {    
+        console.log(error);
+        sendResponse(res, (Number(error) || 500), { 
+            code: (Number(error) || 500),
+            message:  new CommonFunctionHelper().getDescriptionByCode((Number(error) || 500)) 
+        });
+      }    
+  };

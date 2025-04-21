@@ -5,6 +5,7 @@
   "main": "app.js",
   "dependencies": {
     "amqplib": "^0.10.5",
+    "bcryptjs": "^3.0.2",
     "common-confirmation-service": "^1.0.0",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
@@ -14,12 +15,12 @@
     "openfsm-client-producer-amqp": "^1.0.1",
     "openfsm-client-service-handler": "^1.0.0",
     "openfsm-common": "^1.0.10",
+    "openfsm-common-functions": "^1.0.2",
     "openfsm-custom-error": "^1.0.0",
     "openfsm-database-connection-producer": "^2.0.0",
-    "openfsm-middlewares-auth-service": "^1.0.7",
     "openfsm-logger-handler": "^1.0.0",
+    "openfsm-middlewares-auth-service": "^1.0.7",
     "pg": "^8.14.1",
-    "openfsm-common-functions": "^1.0.2",
     "swagger-ui-express": "^5.0.1",
     "winston": "^3.17.0"
   },
