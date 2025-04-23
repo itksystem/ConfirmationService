@@ -275,3 +275,46 @@ exports.getSecurityQuestionStatus = async (req, res) => {
         });
       }    
   };
+
+// получить контрольный вопрос
+exports.getSecurityQuestion = async (req, res) => {
+    try {    
+      let userId = await authMiddleware.getUserId(req, res);
+      if (!userId) throw(401)
+      const question = await confirmationHelper.getSecurityQuestion(userId);    
+      res.status(200).json({ status: (question?.text ? true : false), question }); // Успешный ответ
+    } catch (error) {
+        console.log(error);
+        sendResponse(res, (Number(error) || 500), { 
+            code: (Number(error) || 500),
+            message:  new CommonFunctionHelper().getDescriptionByCode((Number(error) || 500)) 
+        });
+    }
+  };
+
+  //  Проверка кода и выполнение операции DISABLE_SECURITY_QUESTION, ENABLE_SECURITY_QUESTION
+exports.securityQuestionAnswer = async (req, res) => {
+    let userId = await authMiddleware.getUserId(req, res);
+    const {answer, requestId, action} = req.body;  
+    try {    
+      if (!userId) throw(401)
+      if(!answer || !requestId || !action) throw(422)
+  
+      const factor = await confirmationHelper.getSecurityAnswer(userId);    
+      const isMatch = await bcrypt.compare(answer.trim().toLowerCase(), factor.factor_key); // сравниваем     
+      if (!isMatch)  throw(422);
+  
+      switch(action){
+         case 'DISABLE_SECURITY_QUESTION' : {
+          let securityQuestionResult  = await confirmationHelper.disableSecurityQuestion(userId);
+          let requestIdResult = await confirmationHelper.change2PHARequestId({userId, requestId, action} )          
+          if(!securityQuestionResult?.blocked) throw(422);
+           break;
+        }
+      }    
+         res.status( (isMatch ? 200 : 403)).json({ status: isMatch }); // Успешный ответ    
+    } catch (error) {
+        response.error(req, res, error); 
+    }
+  };
+  

@@ -20,8 +20,8 @@ router.get( '/v1/request/:confirmationType', authMiddleware.authenticateToken, c
 router.get('/v1/security-question-status', authMiddleware.authenticateToken, confirmation.getSecurityQuestionStatus);  // получение статуса установки вопроса
 router.get('/v1/security-questions', authMiddleware.authenticateToken, confirmation.getSecurityQuestions);  // получение списка вопросов 
 router.post('/v1/security-question', authMiddleware.authenticateToken, confirmation.setSecurityQuestion);  // установка контрольного вопроса
-
-//router.get('/v1/security-question-answer', authMiddleware.authenticateToken, confirmation.securityQuestionAnswer);  // установить контрольный 
+router.get('/v1/security-question', authMiddleware.authenticateToken, confirmation.getSecurityQuestion);  // получить контрольный вопрос
+router.post('/v1/security-question-answer', authMiddleware.authenticateToken, confirmation.securityQuestionAnswer);  // установить контрольный 
 
 module.exports = router;
  

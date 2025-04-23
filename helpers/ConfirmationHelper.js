@@ -295,6 +295,62 @@ exports.setSecurityQuestion = async (userId = null, factorId = null, factorText 
   };
   
 
+  exports.getSecurityQuestion = async (userId) => {
+    try {
+      const result = await new Promise((resolve, reject) => {
+        db.query(SQL.CONFIRMATION.GET_SECURITY_QUESTION, [userId], (err, result) => {
+          if (err) {
+            logger.error('Ошибка при получении кода верификации:', err);
+            return reject(err);
+          }
+          resolve(result); 
+        });
+      });
+      return result.rows[0] || null; // Возвращаем `null`, если данных нет
+    } catch (error) {
+      logger.error('Ошибка в getSequrityQuestion:', error);
+      throw error;
+    }
+  };
+  
+  exports.getSecurityAnswer = async (userId) => {
+    try {
+      const result = await new Promise((resolve, reject) => {
+        db.query(SQL.CONFIRMATION.GET_SECURITY_FACTOR_KEY, [userId], (err, result) => {
+          if (err) {
+            logger.error('Ошибка при получении кода верификации:', err);
+            return reject(err);
+          }
+          resolve(result); 
+        });
+      });
+      return result.rows[0] || null; // Возвращаем `null`, если данных нет
+    } catch (error) {
+      logger.error('Ошибка в getSequrityQuestion:', error);
+      throw error;
+    }
+  };
+  
+// Отключение контрольного вопроса
+exports.disableSecurityQuestion = async (userId) => {
+  try {
+    const result = await new Promise((resolve, reject) => {
+      db.query(SQL.CONFIRMATION.DISABLE_TWO_FACTOR, [userId], (err, result) => {
+        if (err) {
+          logger.error('Ошибка при получении кода верификации:', err);
+          return reject(err);
+        }
+        resolve(result); 
+      });
+    });
+    return result.rows[0] || null; // Возвращаем `null`, если данных нет
+  } catch (error) {
+    logger.error('Ошибка в getSequrityQuestion:', error);
+    throw error;
+  }
+};
+
+
 
 /* Шина */
 
@@ -384,6 +440,7 @@ startConsumer(SMS_CODES_RESULT_QUEUE, async (msg) => {
     "requestId" : "455eb0ee-a550-46a6-b480-45fdbc91952d", 
    "status" : "FAILED"
    }
+   await exports.change2PHARequestId(msg)
  */
 startConsumer(TWO_PA_CHANGE_STATUS_QUEUE, async (msg) => { 
   try {
