@@ -295,26 +295,30 @@ exports.getSecurityQuestion = async (req, res) => {
   //  Проверка кода и выполнение операции DISABLE_SECURITY_QUESTION, ENABLE_SECURITY_QUESTION
 exports.securityQuestionAnswer = async (req, res) => {
     let userId = await authMiddleware.getUserId(req, res);
-    const {answer, requestId, action} = req.body;  
+    const {answer, requestId} = req.body;  
     try {    
       if (!userId) throw(401)
-      if(!answer || !requestId || !action) throw(422)
+      console.log(answer, requestId)
+      if(!answer || !requestId) throw(422)
   
       const factor = await confirmationHelper.getSecurityAnswer(userId);    
+      console.log(`factor`,factor)
+      if(!factor)  throw(422);
       const isMatch = await bcrypt.compare(answer.trim().toLowerCase(), factor.factor_key); // сравниваем     
+      console.log(`isMatch=>`,isMatch)
       if (!isMatch)  throw(422);
-  
-      switch(action){
-         case 'DISABLE_SECURITY_QUESTION' : {
           let securityQuestionResult  = await confirmationHelper.disableSecurityQuestion(userId);
-          let requestIdResult = await confirmationHelper.change2PHARequestId({userId, requestId, action} )          
+          let requestIdResult = await confirmationHelper.change2PHARequestId({userId, requestId, status : `SUCCESS` } )          
+          console.log(`securityQuestionResult?.blocked=>`,securityQuestionResult?.blocked)
           if(!securityQuestionResult?.blocked) throw(422);
-           break;
-        }
-      }    
-         res.status( (isMatch ? 200 : 403)).json({ status: isMatch }); // Успешный ответ    
+          res.status( (isMatch ? 200 : 403)).json({ status: isMatch }); // Успешный ответ    
     } catch (error) {
-        response.error(req, res, error); 
+        console.log(error);
+        let requestIdResult = await confirmationHelper.change2PHARequestId({userId, requestId, status : `FAILED` } )          
+        sendResponse(res, (Number(error) || 500), { 
+            code: (Number(error) || 500),
+            message:  new CommonFunctionHelper().getDescriptionByCode((Number(error) || 500)) 
+        });
     }
   };
   
